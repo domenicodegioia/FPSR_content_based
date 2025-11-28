@@ -1,0 +1,17 @@
+.idea
+__pycache__
+log
+ducho_logs
+*.zip
+results
+*.log
+*.out
+*_indexed.tsv
+.vscode/
+*.tsv
+images/
+*.npy
+.code
+.DS_Store
+elliot_venv
+venv
