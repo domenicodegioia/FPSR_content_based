@@ -2,6 +2,10 @@
 Module description:
 
 """
+import os
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
 
 
 __version__ = '0.3'
@@ -9,12 +13,12 @@ __author__ = 'Massimo Quadrana, Vito Walter Anelli, Claudio Pomo, Felice Antonio
 __email__ = 'mquadrana@pandora.com, vitowalter.anelli@poliba.it, claudio.pomo@poliba.it, felice.merra@poliba.it'
 
 import pickle
+import time
 
 from elliot.recommender.base_recommender_model import BaseRecommenderModel
 from elliot.recommender.base_recommender_model import init_charger
-from elliot.recommender.latent_factor_models.Slim.slim_model import SlimModel
+from .slim_model import SlimModel
 from elliot.recommender.recommender_utils_mixin import RecMixin
-from elliot.utils.write import store_recommendation
 
 
 class Slim(RecMixin, BaseRecommenderModel):
@@ -69,19 +73,7 @@ class Slim(RecMixin, BaseRecommenderModel):
     @property
     def name(self):
         return "Slim" \
-               + f"_{self.get_base_params_shortcut()}" \
                + f"_{self.get_params_shortcut()}"
-
-    def get_recommendations(self, k: int = 10):
-        predictions_top_k_val = {}
-        predictions_top_k_test = {}
-
-        recs_val, recs_test = self.process_protocol(k)
-
-        predictions_top_k_val.update(recs_val)
-        predictions_top_k_test.update(recs_test)
-
-        return predictions_top_k_val, predictions_top_k_test
 
     def get_single_recommendation(self, mask, k, *args):
         return {u: self._model.get_user_recs(u, mask, k) for u in self._data.train_dict.keys()}
@@ -110,10 +102,9 @@ class Slim(RecMixin, BaseRecommenderModel):
         return self._model.predict(u, i)
 
     def train(self):
-        if self._restore:
-            return self.restore_weights()
-
+        start = time.time()
         self._model.train(self._verbose)
+        end = time.time()
+        self.logger.info(f"The similarity computation has taken: {end - start}")
 
         self.evaluate()
-
