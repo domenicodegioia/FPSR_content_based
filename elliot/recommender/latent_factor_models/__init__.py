@@ -11,6 +11,7 @@ from .BPRMF_batch import BPRMF_batch
 from .BPRMF import BPRMF
 from .WRMF import WRMF
 from .PureSVD import PureSVD
+from .RSVD import RSVD
 from .MF import MF
 from .FunkSVD import FunkSVD
 from .PMF import PMF
