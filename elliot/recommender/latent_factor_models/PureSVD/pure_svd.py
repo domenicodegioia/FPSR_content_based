@@ -1,14 +1,7 @@
-"""
-Module description:
-
-"""
-
-__version__ = '0.3.1'
-__author__ = 'Vito Walter Anelli, Claudio Pomo'
-__email__ = 'vitowalter.anelli@poliba.it, claudio.pomo@poliba.it'
-
 import numpy as np
 import pickle
+import time
+from tqdm import tqdm
 
 from elliot.recommender.recommender_utils_mixin import RecMixin
 from elliot.utils.write import store_recommendation
@@ -44,12 +37,12 @@ class PureSVD(RecMixin, BaseRecommenderModel):
     def __init__(self, data, config, params, *args, **kwargs):
 
         self._params_list = [
-            ("_factors", "factors", "factors", 10, None, None)
+            ("_factors", "factors", "factors", 10, int, None)
         ]
         self.autoset_params()
 
         self._ratings = self._data.train_dict
-        self._sp_i_train = self._data.sp_i_train
+
         self._model = PureSVDModel(self._factors, self._data, self._seed)
 
     def get_recommendations(self, k: int = 10):
@@ -63,16 +56,7 @@ class PureSVD(RecMixin, BaseRecommenderModel):
 
         return predictions_top_k_val, predictions_top_k_test
 
-    def get_single_recommendation(self, mask, k, *args):
-        return {u: self._model.get_user_recs(u, mask, k) for u in self._ratings.keys()}
-
     def predict(self, u: int, i: int):
-        """
-        Get prediction on the user item pair.
-
-        Returns:
-            A single float vaue.
-        """
         return self._model.predict(u, i)
 
     @property
@@ -80,30 +64,17 @@ class PureSVD(RecMixin, BaseRecommenderModel):
         return f"PureSVD_{self.get_params_shortcut()}"
 
     def train(self):
-
-        if self._restore:
-            return self.restore_weights()
-
-        self._model.train_step()
-
+        start = time.time()
+        self._model.initialize()
+        end = time.time()
+        self.logger.info(f"The similarity computation has taken: {end - start}")
         self.evaluate()
 
-    def restore_weights(self):
-        try:
-            with open(self._saving_filepath, "rb") as f:
-                self._model.set_model_state(pickle.load(f))
-            print(f"Model correctly Restored")
-
-            recs = self.get_recommendations(self.evaluator.get_needed_recommendations())
-            result_dict = self.evaluator.eval(recs)
-            self._results.append(result_dict)
-
-            print("******************************************")
-            if self._save_recs:
-                store_recommendation(recs, self._config.path_output_rec_result + f"{self.name}.tsv")
-            return True
-
-        except Exception as ex:
-            print(f"Error in model restoring operation! {ex}")
-
-        return False
+    def get_single_recommendation(self, mask, k, *args):
+        recs = {}
+        for i in tqdm(range(0, len(self._ratings.keys()), 1024), desc="Processing batches", total=len(self._ratings.keys()) // 1024 + (1 if len(self._ratings.keys()) % 1024 != 0 else 0)):
+            batch = list(self._ratings.keys())[i:i+1024]
+            mat = self._model.get_user_recs_batch(batch, mask, k)
+            proc_batch = dict(zip(batch, mat))
+            recs.update(proc_batch)
+        return recs
