@@ -26,3 +26,8 @@ for _backend in sys.modules["external"].backend:
         from .bm3.BM3 import BM3
         from .simgcl.SimGCL import SimGCL
         from .ngcf_m.NGCFM import NGCFM
+
+        from .bism import BISM
+        from .fpsr import FPSR
+        from .fpsr_plus import FPSRplus
+        from .fpsr_plus_f import FPSRplusF
