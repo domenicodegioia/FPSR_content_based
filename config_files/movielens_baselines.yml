@@ -1,0 +1,185 @@
+experiment:
+  backend: pytorch
+  dataset: movielens_small
+  data_config:
+    strategy: dataset
+    dataset_path: ../data/{0}/dataset.tsv
+    side_information:
+      - dataloader: ItemAttributesOH
+        attribute_file: ../data/{0}/item_features.tsv
+  splitting:
+    test_splitting:
+      strategy: random_subsampling
+      test_ratio: 0.15
+    validation_splitting:
+      strategy: random_subsampling
+      test_ratio: 0.15
+  top_k: 20
+  gpu: 0
+  evaluation:
+    cutoffs: [10,20]
+    simple_metrics: [Recall, nDCG]
+  external_models_path: ../external/models/__init__.py
+  models:
+
+    Random:
+      meta:
+        save_recs: False
+
+    MostPop:
+      meta:
+        verbose: True
+        save_recs: False
+
+    PureSVD:
+      meta:
+        save_recs: False
+        verbose: True
+        validation_metric: Recall@20
+        hyper_max_evals: 50
+        hyper_opt_alg: tpe
+      factors: [quniform, 10, 2000, 1]
+      seed: 42
+
+    RSVD:
+      meta:
+        save_recs: False
+        verbose: True
+        validation_metric: Recall@20
+        hyper_max_evals: 50
+        hyper_opt_alg: tpe
+      factors: [quniform, 10, 2000, 1]
+      reg: [loguniform, -4.605170186, 6.907755278]
+      seed: 42
+
+    ItemKNN:
+      meta:
+        save_recs: False
+        verbose: True
+        hyper_max_evals: 50
+        hyper_opt_alg: tpe
+        validation_metric: Recall@20
+      neighbors: [uniform, 5, 1000]
+      asymmetric_alpha: [uniform, 0, 2]
+      tversky_alpha: [uniform, 0, 2]
+      tversky_beta: [uniform, 0, 2]
+      similarity: [cosine, jaccard, dot, asym, tversky]
+
+    AttributeItemKNN:
+      meta:
+        save_recs: False
+        verbose: True
+        hyper_max_evals: 50
+        hyper_opt_alg: tpe
+        validation_metric: Recall@20
+      neighbors: [ uniform, 5, 1000 ]
+      asymmetric_alpha: [uniform, 0, 2]
+      tversky_alpha: [uniform, 0, 2]
+      tversky_beta: [uniform, 0, 2]
+      similarity: [cosine, jaccard, dot, asym, tversky]
+      weight: [loguniform, -5, 5]
+      feat_w: ["", "TF_IDF", "BM25"]
+      loader: "ItemAttributesOH"
+
+    EASER:
+      meta:
+        save_recs: False
+        verbose: False
+        validation_metric: Recall@20
+        hyper_max_evals: 50
+        hyper_opt_alg: tpe
+      l2_norm: [uniform, 10, 10e5]
+      neighborhood: -1
+
+    Slim:
+      meta:
+        save_recs: False
+        verbose: False
+        validation_metric: Recall@20
+        hyper_max_evals: 50
+        hyper_opt_alg: tpe
+      alpha: [loguniform, -6.907755278, 0]
+      l1_ratio: [loguniform, -6.907755278, 0]
+      neighborhood: [uniform, 5, 1000]
+
+    RP3beta:
+      meta:
+        save_recs: False
+        verbose: False
+        validation_metric: Recall@20
+        hyper_max_evals: 50
+        hyper_opt_alg: tpe
+      neighborhood: [uniform, 50, 10000]
+      alpha: [uniform, 0, 5]
+      beta: [uniform, 0, 5]
+      normalize_similarity: [True, False]
+
+    external.BISM:
+      meta:
+        save_recs: False
+        verbose: False
+        validation_metric: Recall@20
+        hyper_opt_alg: tpe
+        hyper_max_evals: 50
+      alpha: [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0]
+      beta: [0.0,0.1,0.2,0.3,0.4,0.5]
+      lamb: [0.01, 0.1, 1, 10, 100]
+      epochs: 15
+      c: [1,2,3,4,5,6,7,8,9,10]
+      seed: 42
+
+    external.FPSR:
+      meta:
+        save_recs: False
+        verbose: False
+        validation_metric: Recall@20
+        hyper_max_evals: 50
+        hyper_opt_alg: tpe
+      eigen_dim: [64,128]
+      batch_size: 64
+      l_w: [0.1, 0.2, 0.3, 0.4, 0.5]
+      rho: 500
+      w_1: [0.1, 0.2, 0.5, 0.8, 1, 2, 5]
+      w_2: [0.1, 0.2, 0.5, 0.8, 1, 2, 5]
+      eta: [0.01, 0.1, 1]
+      eps: 5e-3
+      tau: [0.1, 0.2, 0.3, 0.4, 0.5]
+      seed: 42
+
+    external.FPSRplus:
+      meta:
+        save_recs: False
+        verbose: False
+        validation_metric: Recall@20
+        hyper_max_evals: 50
+        hyper_opt_alg: tpe
+      eigen_dim: [64,128]
+      batch_size: 64
+      l_w: [0.1, 0.2, 0.3, 0.4, 0.5]
+      rho: 500
+      w_1: [0.1, 0.2, 0.5, 0.8, 1, 2, 5]
+      w_2: [0.1, 0.2, 0.5, 0.8, 1, 2, 5]
+      eta: [0.01, 0.1, 1]
+      eps: 5e-3
+      tau: [0.1, 0.2, 0.3, 0.4, 0.5]
+      pop_ratio: 0.1
+      seed: 42
+
+    external.FPSRplusF:
+      meta:
+        save_recs: False
+        verbose: False
+        validation_metric: Recall@20
+        hyper_max_evals: 50
+        hyper_opt_alg: tpe
+      eigen_dim: [64,128]
+      batch_size: 64
+      l_w: [0.1, 0.2, 0.3, 0.4, 0.5]
+      rho: 500
+      w_1: [0.1, 0.2, 0.5, 0.8, 1, 2, 5]
+      w_2: [0.1, 0.2, 0.5, 0.8, 1, 2, 5]
+      eta: [0.01, 0.1, 1]
+      eps: 5e-3
+      tau: [0.1, 0.2, 0.3, 0.4, 0.5]
+      pop_ratio: 0.1
+      seed: 42
