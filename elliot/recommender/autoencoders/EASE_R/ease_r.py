@@ -29,6 +29,8 @@ class EASER(RecMixin, BaseRecommenderModel):
 
     @init_charger
     def __init__(self, data, config, params, *args, **kwargs):
+        if self._batch_size < 1:
+            self._batch_size = self._num_users
 
         self._params_list = [
             ("_neighborhood", "neighborhood", "neighborhood", -1, int, None),
@@ -119,23 +121,7 @@ class EASER(RecMixin, BaseRecommenderModel):
         self._similarity_matrix.setdiag(item_popularity + self._l2_norm)
 
         if torch.cuda.is_available():
-            self.logger.info(f"Use CUDA for Inverse")
-            self._similarity_matrix = torch.tensor(data=self._similarity_matrix.todense(),
-                                                   dtype=torch.float32).cuda()
-            torch.cuda.synchronize()
-            S = np.zeros((self._data.num_items, self._data.num_items))
-            I = torch.eye(self._data.num_items).cuda()
-            batch_size=1024
-            for start in tqdm(range(0, self._data.num_items, batch_size), disable=False):
-                end = min(start + batch_size, self._data.num_items)
-                block = I[:, start:end]
-                X = torch.linalg.solve(self._similarity_matrix, block)
-                X = X.cpu().numpy()
-                diag_vals = -np.diag(X[start:end, :])
-                S[:, start:end] = X / diag_vals
-            np.fill_diagonal(S, 0)
-            self._similarity_matrix = S
-            torch.cuda.empty_cache()
+            self._similarity_matrix = self.batch_sparse_inverse(self._similarity_matrix, batch_size=self._batch_size)
         else:
             self.logger.info(f"Classical Inverse")
             P = np.linalg.inv(self._similarity_matrix.todense())
@@ -153,3 +139,21 @@ class EASER(RecMixin, BaseRecommenderModel):
             self._similarity_matrix = scipy.sparse.csr_matrix(self._similarity_matrix)
 
         self.evaluate()
+
+    def batch_sparse_inverse(self, similarity_matrix, batch_size = 1024):
+        self.logger.info(f"Use CUDA for Inverse")
+        similarity_matrix = torch.tensor(data=similarity_matrix.todense(),
+                                               dtype=torch.float32).cuda()
+        torch.cuda.synchronize()
+        S = np.zeros((self._data.num_items, self._data.num_items))
+        I = torch.eye(self._data.num_items).cuda()
+        for start in tqdm(range(0, self._data.num_items, batch_size), disable=False):
+            end = min(start + batch_size, self._data.num_items)
+            block = I[:, start:end]
+            X = torch.linalg.solve(similarity_matrix, block)
+            X = X.cpu().numpy()
+            diag_vals = -np.diag(X[start:end, :])
+            S[:, start:end] = X / diag_vals
+        np.fill_diagonal(S, 0)
+        torch.cuda.empty_cache()
+        return S
