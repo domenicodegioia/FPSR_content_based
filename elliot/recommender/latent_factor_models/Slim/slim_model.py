@@ -8,6 +8,8 @@ __author__ = 'Felice Antonio Merra, Vito Walter Anelli, Claudio Pomo'
 __email__ = 'felice.merra@poliba.it, vitowalter.anelli@poliba.it, claudio.pomo@poliba.it'
 
 import time
+from operator import itemgetter
+
 import numpy as np
 import sys
 import scipy.sparse as sp
@@ -18,6 +20,8 @@ from sklearn.exceptions import ConvergenceWarning
 import multiprocessing
 from multiprocessing import Pool, cpu_count, shared_memory
 from functools import partial
+
+from sklearn.utils.extmath import safe_sparse_dot
 from tqdm import tqdm
 
 # worker function that runs in separate processes
@@ -207,23 +211,13 @@ class SlimModel(object):
         self._w_sparse = sp.csr_matrix((all_values, (all_rows, all_cols)),
                                       shape=(self._num_items, self._num_items), dtype=np.float32)
 
-    def prepare_predictions(self):
-        self.pred_mat = self._data.sp_i_train_ratings.dot(self._w_sparse).toarray()
-
-    def predict(self, u, i):
-        return self.pred_mat[u, i]
-
-    def get_user_recs(self, user, mask, k=100):
-        ui = self._data.public_users[user]
-        user_mask = mask[ui]
-        predictions = self.pred_mat[ui].copy()
-        predictions[~user_mask] = -np.inf
-        valid_items = user_mask.sum()
-        local_k = min(k, valid_items)
-        # Gestisce il caso in cui non ci siano item validi
-        if local_k == 0:
-            return []
-        top_k_indices = np.argpartition(predictions, -local_k)[-local_k:]
-        top_k_values = predictions[top_k_indices]
-        sorted_top_k_indices = top_k_indices[np.argsort(-top_k_values)]
-        return [(self._data.private_items[idx], predictions[idx]) for idx in sorted_top_k_indices]
+    def get_user_recs_batch(self, u, mask, k=100):
+        u_index = itemgetter(*u)(self._data.public_users)
+        preds = safe_sparse_dot(self._data.sp_i_train_ratings[u_index, :], self._w_sparse).toarray()
+        users_recs = np.where(mask[u_index, :], preds, -np.inf)
+        index_ordered = np.argpartition(users_recs, -k, axis=1)[:, -k:]
+        value_ordered = np.take_along_axis(users_recs, index_ordered, axis=1)
+        local_top_k = np.take_along_axis(index_ordered, value_ordered.argsort(axis=1)[:, ::-1], axis=1)
+        value_sorted = np.take_along_axis(users_recs, local_top_k, axis=1)
+        mapper = np.vectorize(self._data.private_items.get)
+        return [[*zip(item, val)] for item, val in zip(mapper(local_top_k), value_sorted)]

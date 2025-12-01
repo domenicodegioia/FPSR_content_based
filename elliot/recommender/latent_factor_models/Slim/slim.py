@@ -14,6 +14,7 @@ __email__ = 'mquadrana@pandora.com, vitowalter.anelli@poliba.it, claudio.pomo@po
 
 import pickle
 import time
+from tqdm import tqdm
 
 from elliot.recommender.base_recommender_model import BaseRecommenderModel
 from elliot.recommender.base_recommender_model import init_charger
@@ -75,12 +76,18 @@ class Slim(RecMixin, BaseRecommenderModel):
         return "Slim" \
                + f"_{self.get_params_shortcut()}"
 
-    def get_single_recommendation(self, mask, k, *args):
-        return {u: self._model.get_user_recs(u, mask, k) for u in self._data.train_dict.keys()}
+    def get_single_recommendation(self, mask, k):
+        # return {u: self.get_user_predictions(u, mask, k) for u in self._data.train_dict.keys()}
+        recs = {}
+        for i in tqdm(range(0, len(self._data.train_dict.keys()), 1024), desc="Processing batches",
+                      total=len(self._data.train_dict.keys()) // 1024 + (1 if len(self._data.train_dict.keys()) % 1024 != 0 else 0)):
+            batch = list(self._data.train_dict.keys())[i:i + 1024]
+            mat = self._model.get_user_recs_batch(batch, mask, k)
+            proc_batch = dict(zip(batch, mat))
+            recs.update(proc_batch)
+        return recs
 
     def get_recommendations(self, k: int = 10):
-        self._model.prepare_predictions()
-
         predictions_top_k_val = {}
         predictions_top_k_test = {}
 
@@ -90,16 +97,6 @@ class Slim(RecMixin, BaseRecommenderModel):
         predictions_top_k_test.update(recs_test)
 
         return predictions_top_k_val, predictions_top_k_test
-
-
-    def predict(self, u: int, i: int):
-        """
-        Get prediction on the user item pair.
-
-        Returns:
-            A single float vaue.
-        """
-        return self._model.predict(u, i)
 
     def train(self):
         start = time.time()
